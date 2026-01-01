@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+/* =====================
+   THEME TOKENS
+   ===================== */
+
+/* LIGHT MODE */
+:root {
+  --bg: #f8fafc;          /* slate-50 */
+  --surface: #ffffff;     /* white */
+  --surface-2: #eef2ff;   /* indigo-50 */
+  --border: #e2e8f0;      /* slate-200 */
+
+  --text: #0f172a;        /* slate-900 */
+  --text-muted: #475569; /* slate-600 */
+
+  --primary: #4f46e5;     /* indigo-600 */
+  --primary-soft: #e0e7ff;/* indigo-100 */
+  --ring: rgba(99,102,241,.35);
+
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+}
+
+/* DARK MODE */
+.dark {
+  --bg: #0b1220;          /* deep navy */
+  --surface: #0f172a;     /* slate-900 */
+  --surface-2: #111c33;   /* dark indigo */
+  --border: #22304a;
+
+  --text: #e5e7eb;        /* gray-200 */
+  --text-muted: #94a3b8; /* slate-400 */
+
+  --primary: #818cf8;     /* indigo-400 */
+  --primary-soft: #1e293b;
+  --ring: rgba(129,140,248,.35);
+
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+}
+
+/* GLOBAL */
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* TEXT SELECTION */
+::selection {
+  background: var(--primary-soft);
+  color: var(--text);
+}
