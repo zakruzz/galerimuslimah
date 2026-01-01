@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { supabase } from './lib/supabase'
 import { useCartStore } from './stores/cart'
@@ -14,19 +14,24 @@ const theme = useThemeStore()
 const router = useRouter()
 const route = useRoute()
 
-const displayName = ref('Akun')
+const isAdmin = ref(false)
+const displayName = ref('Admin')
 const showAccountMenu = ref(false)
 
-const isAdmin = ref(false)
+function closeMenu() {
+  showAccountMenu.value = false
+}
 
-async function refreshUserLabel() {
+watch(() => route.fullPath, closeMenu)
+
+async function refreshAdminState() {
   const { data } = await supabase.auth.getSession()
   const session = data.session
 
   if (!session) {
-    displayName.value = 'Akun'
     isAdmin.value = false
-    return null
+    displayName.value = 'Admin'
+    return
   }
 
   const uid = session.user.id
@@ -36,85 +41,77 @@ async function refreshUserLabel() {
     .eq('user_id', uid)
     .maybeSingle()
 
-  if (error) console.error('profiles select error:', error)
-
-  displayName.value = prof?.full_name?.trim() || session.user.email || 'Akun'
-  isAdmin.value = prof?.role === 'admin'
-  return session
-}
-
-async function logout() {
-  showAccountMenu.value = false
-
-  const { error } = await supabase.auth.signOut()
   if (error) {
-    await $swal.fire({
-      icon: 'error',
-      title: 'Logout gagal',
-      text: error.message,
-      confirmButtonText: 'OK',
-    })
+    isAdmin.value = false
+    displayName.value = 'Admin'
     return
   }
 
-  await $swal.fire({
-    icon: 'success',
-    title: 'Logout berhasil',
-    text: 'Anda akan diarahkan ke halaman login',
-    confirmButtonText: 'OK',
-    allowOutsideClick: false,
-  })
-
-  window.location.href = '/login'
+  isAdmin.value = prof?.role === 'admin'
+  displayName.value = (prof?.full_name?.trim() || session.user.email || 'Admin')
 }
 
+async function logout() {
+  closeMenu()
+  const { error } = await supabase.auth.signOut()
 
-watch(() => route.fullPath, () => {
-  showAccountMenu.value = false
-})
+  if (error) {
+    await $swal({ icon: 'error', title: 'Logout gagal', text: error.message })
+    return
+  }
 
+  await $swal({ icon: 'success', title: 'Logout berhasil', text: 'Anda akan diarahkan ke login admin.' })
+
+  isAdmin.value = false
+  displayName.value = 'Admin'
+
+  // kalau lagi di area admin, langsung lempar ke login
+  if (route.path.startsWith('/admin')) {
+    router.replace('/login')
+  }
+}
 
 let sub
+onMounted(async () => {
+  await refreshAdminState()
 
-onMounted(() => {
-  const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
-    if (!session && route.path !== '/login' && route.path !== '/register') {
-      await router.replace('/login')
+  const { data } = supabase.auth.onAuthStateChange(async () => {
+    await refreshAdminState()
+
+    // kalau sedang berada di route yg butuh auth, dan session hilang -> lempar login
+    if (route.meta?.requiresAuth) {
+      const { data: sess } = await supabase.auth.getSession()
+      if (!sess.session) await router.replace('/login')
     }
-    await refreshUserLabel()
   })
   sub = data.subscription
 })
 
 onBeforeUnmount(() => sub?.unsubscribe())
-
 </script>
 
-
 <template>
-  <div class="min-h-screen">
+  <div class="min-h-screen" :style="{ background:'var(--bg)', color:'var(--text)' }">
     <!-- NAVBAR -->
     <header
       class="sticky top-0 z-50 border-b backdrop-blur"
       :style="{ background:'var(--surface)', borderColor:'var(--border)' }"
     >
-      <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
         <router-link to="/" class="flex items-center gap-2 font-semibold text-lg">
-          <span
-            class="h-9 w-9 rounded-2xl grid place-items-center text-white"
-            :style="{ background:'var(--primary)' }"
-          >
+          <span class="h-9 w-9 rounded-2xl grid place-items-center text-white" :style="{ background:'var(--primary)' }">
             <i class="bi bi-bag-heart-fill"></i>
           </span>
           <span :style="{ color:'var(--primary)' }">Katalog Baju</span>
         </router-link>
 
         <div class="flex items-center gap-2">
-          <!-- Dark mode -->
+          <!-- Theme toggle -->
           <button
-            @click="theme.toggle()"
             class="rounded-xl border px-3 py-2"
             :style="{ background:'var(--surface)', borderColor:'var(--border)' }"
+            @click="theme.toggle()"
+            title="Toggle theme"
           >
             <i :class="theme.dark ? 'bi bi-sun' : 'bi bi-moon-stars'"></i>
           </button>
@@ -136,63 +133,67 @@ onBeforeUnmount(() => sub?.unsubscribe())
             </span>
           </router-link>
 
+          <!-- Checkout -->
           <router-link
-  v-if="isAdmin"
-  to="/admin"
-  class="px-3 py-2 rounded-xl border text-sm"
-  :style="{ background:'var(--surface)', borderColor:'var(--border)', color:'var(--text)' }"
->
-  <i class="bi bi-shield-lock me-2"></i> Admin
-</router-link>
+            to="/checkout"
+            class="rounded-xl px-3 py-2 text-white flex items-center gap-2"
+            :style="{ background:'var(--primary)' }"
+          >
+            <i class="bi bi-whatsapp"></i>
+            <span class="hidden sm:inline">Checkout</span>
+          </router-link>
 
+          <!-- Admin (kalau sudah admin login -> dropdown, kalau belum -> link login admin) -->
+          <div class="relative">
+            <router-link
+              v-if="!isAdmin"
+              to="/login"
+              class="rounded-xl border px-3 py-2 text-sm"
+              :style="{ background:'var(--surface)', borderColor:'var(--border)', color:'var(--text)' }"
+            >
+              <i class="bi bi-shield-lock me-2"></i> Admin Login
+            </router-link>
 
-          <!-- Account -->
-<!-- ACCOUNT DROPDOWN -->
-<div class="relative">
-  <button
-    @click="showAccountMenu = !showAccountMenu"
-    class="flex items-center gap-2 rounded-xl px-3 py-2 transition"
-    :style="{ background:'var(--primary)', color:'white' }"
-  >
-    <i class="bi bi-person-circle text-lg"></i>
-    <span class="hidden sm:inline">{{ displayName }}</span>
-    <i class="bi bi-chevron-down text-xs"></i>
-  </button>
+            <button
+              v-else
+              @click="showAccountMenu = !showAccountMenu"
+              class="flex items-center gap-2 rounded-xl px-3 py-2 transition text-white"
+              :style="{ background:'var(--primary)' }"
+            >
+              <i class="bi bi-person-circle text-lg"></i>
+              <span class="hidden sm:inline">{{ displayName }}</span>
+              <i class="bi bi-chevron-down text-xs"></i>
+            </button>
 
-  <!-- click outside -->
-  <div
-    v-if="showAccountMenu"
-    class="fixed inset-0 z-40"
-    @click="showAccountMenu = false"
-  ></div>
+            <!-- dropdown admin -->
+            <div
+              v-if="isAdmin && showAccountMenu"
+              class="absolute right-0 mt-2 w-56 rounded-2xl border overflow-hidden shadow-lg"
+              :style="{ background:'var(--surface)', borderColor:'var(--border)' }"
+            >
+              <router-link
+                to="/admin"
+                @click="closeMenu"
+                class="flex items-center gap-2 px-4 py-3 text-sm transition"
+                :style="{ color:'var(--text)' }"
+              >
+                <i class="bi bi-speedometer2"></i>
+                Dashboard Admin
+              </router-link>
 
-  <!-- menu -->
-  <div
-    v-if="showAccountMenu"
-    class="absolute right-0 mt-2 w-44 rounded-2xl border shadow-lg z-50 overflow-hidden"
-    :style="{ background:'var(--surface)', borderColor:'var(--border)' }"
-  >
-    <router-link
-      to="/account"
-      @click="showAccountMenu = false"
-      class="flex items-center gap-2 px-4 py-3 text-sm transition hover:bg-[var(--primary-soft)]"
-      :style="{ color:'var(--text)' }"
-    >
-      <i class="bi bi-person"></i>
-      Akun Saya
-    </router-link>
+              <div class="h-px" :style="{ background:'var(--border)' }"></div>
 
-    <button
-    type="button"
-      @click="logout"
-      class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm transition hover:bg-red-50"
-      style="color: var(--danger)"
-    >
-      <i class="bi bi-box-arrow-right"></i>
-      Logout
-    </button>
-  </div>
-</div>
+              <button
+                type="button"
+                @click="logout"
+                class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm transition"
+                :style="{ color:'var(--text)' }"
+              >
+                <i class="bi bi-box-arrow-right"></i>
+                Logout
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </header>

@@ -2,120 +2,71 @@
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useRouter } from 'vue-router'
+import { getCurrentInstance } from 'vue'
+
+const { appContext } = getCurrentInstance()
+const $swal = appContext.config.globalProperties.$swal
 
 const router = useRouter()
 const email = ref('')
 const password = ref('')
 const loading = ref(false)
 
-async function signUp() {
-  loading.value = true
-  const { error } = await supabase.auth.signUp({
-    email: email.value,
-    password: password.value
-  })
-  loading.value = false
-  if (error) return alert(error.message)
-  alert('Registrasi berhasil. Cek email jika diminta verifikasi.')
-}
-
 async function signIn() {
   loading.value = true
   const { error } = await supabase.auth.signInWithPassword({
     email: email.value,
-    password: password.value
+    password: password.value,
   })
   loading.value = false
-  if (error) return alert(error.message)
-  router.push('/account')
+
+  if (error) {
+    await $swal({ icon: 'error', title: 'Login gagal', text: error.message })
+    return
+  }
+
+  // masuk ke admin
+  router.push('/admin')
 }
 </script>
 
 <template>
-  <div
-    class="min-h-screen grid place-items-center px-4"
-    :style="{ background:'var(--bg)', color:'var(--text)' }"
-  >
-    <!-- CARD -->
-    <div
-      class="w-full max-w-md rounded-3xl border shadow-md p-6"
-      :style="{ background:'var(--surface-2)', borderColor:'var(--border)' }"
+  <div class="min-h-[70vh] grid place-items-center px-4">
+    <div class="w-full max-w-md rounded-2xl border p-6"
+      :style="{ background:'var(--surface)', borderColor:'var(--border)', color:'var(--text)' }"
     >
-      <!-- HEADER -->
       <div class="flex items-center gap-3">
-        <span
-          class="inline-flex h-11 w-11 items-center justify-center rounded-2xl text-white"
-          :style="{ background:'var(--primary)' }"
-        >
-          <i class="bi bi-person-circle text-xl"></i>
-        </span>
+        <div class="h-11 w-11 rounded-2xl grid place-items-center text-white"
+          :style="{ background:'var(--primary)' }">
+          <i class="bi bi-shield-lock"></i>
+        </div>
         <div>
-          <h1 class="text-2xl font-semibold text-[var(--text)]">Login</h1>
-          <p class="text-sm text-[var(--text-muted)]">
-            Login untuk isi alamat & checkout.
-          </p>
+          <h1 class="text-xl font-semibold">Admin Login</h1>
+          <p class="text-sm opacity-70">Hanya admin yang bisa mengakses dashboard.</p>
         </div>
       </div>
 
-      <!-- FORM -->
-      <div class="mt-6 space-y-4">
-        <div>
-          <label class="text-sm font-medium text-[var(--text)]">Email</label>
-          <input
-            v-model="email"
-            type="email"
-            placeholder="contoh@email.com"
-            class="mt-2 w-full rounded-xl border-2 px-4 py-3 outline-none transition"
-            :style="{
-              background:'var(--surface)',
-              borderColor:'var(--border)',
-              color:'var(--text)'
-            }"
-          />
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-[var(--text)]">Password</label>
-          <input
-            v-model="password"
-            type="password"
-            placeholder="••••••••"
-            class="mt-2 w-full rounded-xl border-2 px-4 py-3 outline-none transition"
-            :style="{
-              background:'var(--surface)',
-              borderColor:'var(--border)',
-              color:'var(--text)'
-            }"
-          />
-        </div>
+      <div class="mt-5 space-y-3">
+        <input v-model="email" type="email" placeholder="Email admin"
+          class="w-full rounded-xl px-4 py-3 border"
+          :style="{ background:'var(--bg)', borderColor:'var(--border)', color:'var(--text)' }"
+        />
+        <input v-model="password" type="password" placeholder="Password"
+          class="w-full rounded-xl px-4 py-3 border"
+          :style="{ background:'var(--bg)', borderColor:'var(--border)', color:'var(--text)' }"
+        />
       </div>
 
-      <!-- ACTION -->
-<div class="mt-6 grid grid-cols-2 gap-3">
-  <button
-    @click="signIn"
-    :disabled="loading"
-    class="px-4 py-3 rounded-2xl text-white font-medium transition disabled:opacity-50"
-    :style="{ background:'var(--primary)' }"
-  >
-    Login
-  </button>
-
-  <router-link
-    to="/register"
-    class="px-4 py-3 rounded-2xl border font-medium transition text-center"
-    :style="{ background:'var(--surface)', borderColor:'var(--border)', color:'var(--text)' }"
-  >
-    Register
-  </router-link>
-</div>
-
-      <!-- FOOTER -->
-      <router-link
-        to="/"
-        class="block mt-5 text-sm hover:underline"
-        :style="{ color:'var(--text-muted)' }"
+      <button
+        @click="signIn"
+        :disabled="loading"
+        class="mt-5 w-full px-4 py-3 rounded-xl text-white"
+        :style="{ background:'var(--primary)' }"
       >
+        {{ loading ? 'Memproses...' : 'Login Admin' }}
+      </button>
+
+      <router-link to="/" class="block mt-4 text-sm opacity-70 hover:underline">
         ← Kembali ke katalog
       </router-link>
     </div>
